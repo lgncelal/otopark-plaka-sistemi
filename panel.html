@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Otopark Plaka Sistemi</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f0f2f5;
+            color: #1a1a2e;
+            padding: 24px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        h1 { margin-bottom: 8px; color: #16213e; }
+        .alt { color: #666; margin-bottom: 24px; font-size: 14px; }
+        .kart {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .kart h2 { font-size: 18px; margin-bottom: 16px; color: #16213e; }
+        input[type=file] { margin-bottom: 12px; }
+        button {
+            background: #0f3460;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover { background: #16213e; }
+        #sonuc {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 8px;
+            display: none;
+        }
+        .izinli { background: #d4edda; color: #155724; }
+        .yetkisiz { background: #f8d7da; color: #721c24; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
+        th { color: #666; font-size: 13px; text-transform: uppercase; }
+        .rozet { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .rozet-yes { background: #d4edda; color: #155724; }
+        .rozet-no { background: #f8d7da; color: #721c24; }
+                .gorsel-alan { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
+        .gorsel-kutu { text-align: center; }
+        .gorsel-kutu span { display: block; font-size: 12px; color: #666; margin-bottom: 6px; text-transform: uppercase; }
+        .gorsel-kutu img { border-radius: 8px; border: 1px solid #ddd; }
+        .arac-img { max-width: 320px; max-height: 240px; }
+        .plaka-img { max-height: 80px; background: #fff; padding: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
+    <p class="alt">Araç fotoğrafı yükleyin, sistem plakayı okuyup giriş iznini kontrol etsin.</p>
+
+    <div class="kart">
+        <h2>Araç Girişi</h2>
+        <input type="file" id="foto" accept="image/*"><br>
+        <button onclick="girisYap()">Plakayı Oku ve Kontrol Et</button>
+        <div id="sonuc"></div>
+    </div>
+
+    <div class="kart">
+        <h2>Kayıtlı Araçlar</h2>
+        <table>
+            <thead><tr><th>Plaka</th><th>Sahip</th></tr></thead>
+            <tbody id="kayitliTablo"></tbody>
+        </table>
+    </div>
+
+    <div class="kart">
+        <h2>Giriş Kayıtları</h2>
+        <table>
+            <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
+            <tbody id="logTablo"></tbody>
+        </table>
+    </div>
+
+    <script>
+        // Araç girişi: foto yükle, /giris endpoint'ine gönder
+        async function girisYap() {
+            const dosya = document.getElementById('foto').files[0];
+            if (!dosya) { alert('Önce bir fotoğraf seçin.'); return; }
+
+            const form = new FormData();
+            form.append('dosya', dosya);
+
+            const yanit = await fetch('/giris', { method: 'POST', body: form });
+            const veri = await yanit.json();
+
+            const sonuc = document.getElementById('sonuc');
+            sonuc.style.display = 'block';
+
+                        if (!veri.bulundu) {
+                sonuc.className = 'yetkisiz';
+                sonuc.innerHTML = 'Plaka okunamadı. Daha net bir fotoğraf deneyin.';
+            } else {
+                // Metin kısmı (izinli / yetkisiz)
+                let metin;
+                if (veri.izinli) {
+                    sonuc.className = 'izinli';
+                    metin = `<b>${veri.plaka}</b> — ${veri.mesaj}<br>Sahip: ${veri.sahip}`;
+                } else {
+                    sonuc.className = 'yetkisiz';
+                    metin = `<b>${veri.plaka}</b> — ${veri.mesaj}`;
+                }
+
+                // Görsel kısmı (araç fotosu + kırpılmış plaka)
+                const gorseller = `
+                    <div class="gorsel-alan">
+                        <div class="gorsel-kutu">
+                            <span>Araç</span>
+                            <img class="arac-img" src="data:image/jpeg;base64,${veri.arac_foto}">
+                        </div>
+                        <div class="gorsel-kutu">
+                            <span>Tespit Edilen Plaka</span>
+                            <img class="plaka-img" src="data:image/jpeg;base64,${veri.plaka_foto}">
+                        </div>
+                    </div>`;
+
+                sonuc.innerHTML = metin + gorseller;
+            }
+        }
+
+        // Kayıtlı plakalar ve logları yükle
+        async function listeleriYenile() {
+            const kp = await (await fetch('/kayitli-plakalar')).json();
+            document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
+                `<tr><td>${p.plaka}</td><td>${p.sahip || '-'}</td></tr>`
+            ).join('');
+
+            const lg = await (await fetch('/loglar')).json();
+            document.getElementById('logTablo').innerHTML = lg.map(l =>
+                `<tr>
+                    <td>${l.plaka}</td>
+                    <td>${l.zaman}</td>
+                    <td><span class="rozet ${l.izinli ? 'rozet-yes' : 'rozet-no'}">
+                        ${l.izinli ? 'İzinli' : 'Yetkisiz'}
+                    </span></td>
+                </tr>`
+            ).join('');
+        }
+
+        // Sayfa açılınca tabloları doldur
+        listeleriYenile();
+    </script>
+</body>
+</html>

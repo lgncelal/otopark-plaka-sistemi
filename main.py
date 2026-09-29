@@ -1,5 +1,9 @@
 import shutil
 import os
+import base64
+import io
+from PIL import Image
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi import FastAPI, UploadFile, File, Depends
 from sqlalchemy.orm import Session
 from fast_alpr import ALPR
@@ -33,29 +37,73 @@ async def giris(dosya: UploadFile = File(...), db: Session = Depends(get_db)):
 
     # 2. Plakayı oku
     sonuclar = alpr.predict(gecici_yol)
-    os.remove(gecici_yol)
 
     if not sonuclar:
+        os.remove(gecici_yol)
         return {"bulundu": False, "mesaj": "Plaka okunamadı"}
 
-    # 3. Okunan plakayı al
+    # 3. Okunan plakayı ve konumunu al
     sonuc = sonuclar[0]
     plaka = sonuc.ocr.text
+    kutu = sonuc.detection.bounding_box  # x1, y1, x2, y2
 
-    # 4. Bu plaka kayıtlı mı diye veritabanına bak
+    # 4. Görseli aç, plaka bölgesini kırp
+    gorsel = Image.open(gecici_yol).convert("RGB")
+    plaka_kirpik = gorsel.crop((kutu.x1, kutu.y1, kutu.x2, kutu.y2))
+
+    # 5. Her iki görseli de base64 metnine çevir (panelde göstermek için)
+    def gorsel_to_base64(img):
+        tampon = io.BytesIO()
+        img.save(tampon, format="JPEG")
+        return base64.b64encode(tampon.getvalue()).decode("utf-8")
+
+    arac_foto_b64 = gorsel_to_base64(gorsel)
+    plaka_foto_b64 = gorsel_to_base64(plaka_kirpik)
+
+    os.remove(gecici_yol)
+
+    # 6. Kayıtlı mı diye kontrol et
     kayit = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
     izinli = kayit is not None
 
-    # 5. Giriş denemesini log tablosuna yaz
+    # 7. Log kaydet
     log = GirisLog(plaka=plaka, izinli=izinli)
     db.add(log)
     db.commit()
 
-    # 6. Sonucu dön
+    # 8. Sonucu görsellerle birlikte dön
     return {
         "bulundu": True,
         "plaka": plaka,
         "izinli": izinli,
         "sahip": kayit.sahip_adi if kayit else None,
         "mesaj": "Giriş izni verildi" if izinli else "Yetkisiz araç",
+        "arac_foto": arac_foto_b64,
+        "plaka_foto": plaka_foto_b64,
     }
+
+@app.get("/kayitli-plakalar")
+def kayitli_plakalar(db: Session = Depends(get_db)):
+    plakalar = db.query(KayitliPlaka).all()
+    return [
+        {"id": p.id, "plaka": p.plaka, "sahip": p.sahip_adi}
+        for p in plakalar
+    ]
+
+
+@app.get("/loglar")
+def loglar(db: Session = Depends(get_db)):
+    kayitlar = db.query(GirisLog).order_by(GirisLog.zaman.desc()).all()
+    return [
+        {
+            "id": k.id,
+            "plaka": k.plaka,
+            "zaman": k.zaman.strftime("%d.%m.%Y %H:%M:%S"),
+            "izinli": k.izinli,
+        }
+        for k in kayitlar
+    ]
+
+@app.get("/", response_class=HTMLResponse)
+def ana_sayfa():
+    return FileResponse("panel.html")
