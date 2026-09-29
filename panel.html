@@ -55,9 +55,51 @@
         .gorsel-kutu img { border-radius: 8px; border: 1px solid #ddd; }
         .arac-img { max-width: 320px; max-height: 240px; }
         .plaka-img { max-height: 80px; background: #fff; padding: 4px; }
+                .ekle-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .ekle-form input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
+        .sil-btn { background: #c0392b; padding: 5px 12px; font-size: 12px; }
+        .sil-btn:hover { background: #a93226; }
+
+
+                /* Toast bildirim */
+        #toast {
+            position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+            padding: 14px 24px; border-radius: 10px; color: #fff; font-weight: 500;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.2); z-index: 1000;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s, top 0.3s;
+        }
+        #toast.goster { opacity: 1; top: 40px; }
+        #toast.basari { background: #27ae60; }
+        #toast.hata { background: #c0392b; }
+        /* Onay penceresi */
+        #onayArka {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+            display: none; align-items: center; justify-content: center; z-index: 1001;
+        }
+        #onayKutu {
+            background: #fff; border-radius: 12px; padding: 24px; max-width: 380px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        }
+        #onayKutu p { margin-bottom: 20px; font-size: 15px; color: #16213e; }
+        .onay-btnlar { display: flex; gap: 10px; justify-content: flex-end; }
+        .onay-iptal { background: #999; }
+        .onay-iptal:hover { background: #777; }
+        .onay-sil { background: #c0392b; }
+        .onay-sil:hover { background: #a93226; }
+
     </style>
 </head>
 <body>
+    <div id="toast"></div>
+    <div id="onayArka">
+        <div id="onayKutu">
+            <p id="onayMetin">Emin misiniz?</p>
+            <div class="onay-btnlar">
+                <button class="onay-iptal" onclick="onayKapat()">İptal</button>
+                <button class="onay-sil" id="onayEvetBtn">Sil</button>
+            </div>
+        </div>
+    </div>
     <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
     <p class="alt">Araç fotoğrafı yükleyin, sistem plakayı okuyup giriş iznini kontrol etsin.</p>
 
@@ -68,10 +110,15 @@
         <div id="sonuc"></div>
     </div>
 
-    <div class="kart">
+        <div class="kart">
         <h2>Kayıtlı Araçlar</h2>
+        <div class="ekle-form">
+            <input type="text" id="yeniPlaka" placeholder="Plaka (örn. 34ABC123)">
+            <input type="text" id="yeniSahip" placeholder="Sahip adı">
+            <button onclick="plakaEkle()">Ekle</button>
+        </div>
         <table>
-            <thead><tr><th>Plaka</th><th>Sahip</th></tr></thead>
+            <thead><tr><th>Plaka</th><th>Sahip</th><th></th></tr></thead>
             <tbody id="kayitliTablo"></tbody>
         </table>
     </div>
@@ -85,6 +132,30 @@
     </div>
 
     <script>
+                // Toast bildirim göster
+        function toastGoster(mesaj, tip = 'basari') {
+            const t = document.getElementById('toast');
+            t.textContent = mesaj;
+            t.className = 'goster ' + tip;
+            setTimeout(() => { t.className = ''; }, 3000);
+        }
+
+        // Onay penceresi (silme için)
+        let onayCallback = null;
+        function onayAc(mesaj, callback) {
+            document.getElementById('onayMetin').textContent = mesaj;
+            document.getElementById('onayArka').style.display = 'flex';
+            onayCallback = callback;
+        }
+        function onayKapat() {
+            document.getElementById('onayArka').style.display = 'none';
+            onayCallback = null;
+        }
+        document.getElementById('onayEvetBtn').onclick = () => {
+            if (onayCallback) onayCallback();
+            onayKapat();
+        };
+
         // Araç girişi: foto yükle, /giris endpoint'ine gönder
         async function girisYap() {
             const dosya = document.getElementById('foto').files[0];
@@ -128,13 +199,18 @@
 
                 sonuc.innerHTML = metin + gorseller;
             }
+            listeleriYenile();  // giriş sonrası tabloları güncelle
         }
 
         // Kayıtlı plakalar ve logları yükle
         async function listeleriYenile() {
             const kp = await (await fetch('/kayitli-plakalar')).json();
-            document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
-                `<tr><td>${p.plaka}</td><td>${p.sahip || '-'}</td></tr>`
+                        document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
+                `<tr>
+                    <td>${p.plaka}</td>
+                    <td>${p.sahip || '-'}</td>
+                    <td><button class="sil-btn" onclick="plakaSil(${p.id})">Sil</button></td>
+                </tr>`
             ).join('');
 
             const lg = await (await fetch('/loglar')).json();
@@ -147,6 +223,41 @@
                     </span></td>
                 </tr>`
             ).join('');
+        }
+
+                // Yeni plaka ekle
+        async function plakaEkle() {
+            const plaka = document.getElementById('yeniPlaka').value.trim();
+            const sahip = document.getElementById('yeniSahip').value.trim();
+            if (!plaka || !sahip) { toastGoster('Plaka ve sahip adı zorunlu.', 'hata'); return; }
+
+            const form = new FormData();
+            form.append('plaka', plaka);
+            form.append('sahip', sahip);
+
+            const yanit = await fetch('/plaka-ekle', { method: 'POST', body: form });
+            if (yanit.ok) {
+                document.getElementById('yeniPlaka').value = '';
+                document.getElementById('yeniSahip').value = '';
+                listeleriYenile();
+                toastGoster('Plaka eklendi: ' + plaka.replace(/ /g, '').toUpperCase());
+            } else {
+                const hata = await yanit.json();
+                toastGoster(hata.detail, 'hata');
+            }
+        }
+
+        // Plaka sil
+        function plakaSil(id) {
+            onayAc('Bu plakayı silmek istediğinize emin misiniz?', async () => {
+                const yanit = await fetch('/plaka-sil/' + id, { method: 'DELETE' });
+                if (yanit.ok) {
+                    listeleriYenile();
+                    toastGoster('Plaka silindi.');
+                } else {
+                    toastGoster('Silme başarısız.', 'hata');
+                }
+            });
         }
 
         // Sayfa açılınca tabloları doldur

@@ -4,7 +4,7 @@ import base64
 import io
 from PIL import Image
 from fastapi.responses import HTMLResponse, FileResponse
-from fastapi import FastAPI, UploadFile, File, Depends
+from fastapi import FastAPI, UploadFile, File, Depends, Form, HTTPException
 from sqlalchemy.orm import Session
 from fast_alpr import ALPR
 
@@ -103,6 +103,40 @@ def loglar(db: Session = Depends(get_db)):
         }
         for k in kayitlar
     ]
+
+@app.post("/plaka-ekle")
+def plaka_ekle(
+    plaka: str = Form(...),
+    sahip: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    # Plakayı temizle: boşlukları sil, büyük harfe çevir
+    plaka = plaka.replace(" ", "").upper()
+
+    # Sahip adını düzenle: baş harfler büyük (Title Case)
+    sahip = sahip.strip().title()
+
+    # Zaten kayıtlı mı kontrol et
+    mevcut = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
+    if mevcut:
+        raise HTTPException(status_code=400, detail="Bu plaka zaten kayıtlı")
+
+    # Yeni plakayı ekle
+    yeni = KayitliPlaka(plaka=plaka, sahip_adi=sahip)
+    db.add(yeni)
+    db.commit()
+    return {"basarili": True, "plaka": plaka}
+
+
+@app.delete("/plaka-sil/{plaka_id}")
+def plaka_sil(plaka_id: int, db: Session = Depends(get_db)):
+    kayit = db.query(KayitliPlaka).filter(KayitliPlaka.id == plaka_id).first()
+    if not kayit:
+        raise HTTPException(status_code=404, detail="Plaka bulunamadı")
+
+    db.delete(kayit)
+    db.commit()
+    return {"basarili": True}
 
 @app.get("/", response_class=HTMLResponse)
 def ana_sayfa():
