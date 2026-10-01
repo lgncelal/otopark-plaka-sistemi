@@ -82,6 +82,13 @@
         .sonuc { margin-top: 16px; padding: 16px; border-radius: 8px; display: none; }
         .sonuc.izinli { background: #d4edda; color: #155724; }
         .sonuc.yetkisiz { background: #f8d7da; color: #721c24; }
+
+        .istatistik-alan { display: flex; gap: 16px; flex-wrap: wrap; }
+        .ist-kutu { flex: 1; min-width: 120px; text-align: center; padding: 16px; background: #f8f9fa; border-radius: 10px; }
+        .ist-sayi { font-size: 32px; font-weight: 700; color: #16213e; }
+        .ist-sayi.yesil { color: #27ae60; }
+        .ist-sayi.kirmizi { color: #c0392b; }
+        .ist-etiket { font-size: 13px; color: #666; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -97,6 +104,27 @@
     </div>
 
     <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
+    <div class="kart">
+        <h2>📊 Özet</h2>
+        <div class="istatistik-alan">
+            <div class="ist-kutu">
+                <div class="ist-sayi" id="istKayitli">0</div>
+                <div class="ist-etiket">Kayıtlı Araç</div>
+            </div>
+            <div class="ist-kutu">
+                <div class="ist-sayi" id="istToplam">0</div>
+                <div class="ist-etiket">Bugünkü Giriş</div>
+            </div>
+            <div class="ist-kutu">
+                <div class="ist-sayi yesil" id="istIzinli">0</div>
+                <div class="ist-etiket">İzinli</div>
+            </div>
+            <div class="ist-kutu">
+                <div class="ist-sayi kirmizi" id="istYetkisiz">0</div>
+                <div class="ist-etiket">Yetkisiz</div>
+            </div>
+        </div>
+    </div>
     <p class="alt">Araç fotoğrafı yükleyin; sistem plakayı okuyup kayıtlı olup olmadığını kontrol eder ve giriş iznini verir.</p>
 
     <div class="kart">
@@ -215,6 +243,13 @@
                     <td>${durumRozet}</td>
                 </tr>`;
             }).join('');
+
+            // İstatistikleri de güncelle
+            const ist = await (await fetch('/istatistik')).json();
+            document.getElementById('istKayitli').textContent = ist.toplam_kayitli;
+            document.getElementById('istToplam').textContent = ist.bugun_toplam;
+            document.getElementById('istIzinli').textContent = ist.bugun_izinli;
+            document.getElementById('istYetkisiz').textContent = ist.bugun_yetkisiz;
         }
 
         async function plakaEkle() {

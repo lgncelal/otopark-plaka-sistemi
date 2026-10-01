@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 from PIL import Image
 from fast_alpr import ALPR
+from datetime import date
 
 from database import engine, Base, get_db
 from models import KayitliPlaka, GirisLog
@@ -127,3 +128,24 @@ def plaka_sil(plaka_id: int, db: Session = Depends(get_db)):
     db.delete(kayit)
     db.commit()
     return {"basarili": True}
+
+
+@app.get("/istatistik")
+def istatistik(db: Session = Depends(get_db)):
+    toplam_kayitli = db.query(KayitliPlaka).count()
+
+    bugun = date.today()
+    bugunku_loglar = db.query(GirisLog).filter(
+        GirisLog.zaman >= datetime(bugun.year, bugun.month, bugun.day)
+    ).all()
+
+    bugun_toplam = len(bugunku_loglar)
+    bugun_izinli = sum(1 for l in bugunku_loglar if l.izinli)
+    bugun_yetkisiz = bugun_toplam - bugun_izinli
+
+    return {
+        "toplam_kayitli": toplam_kayitli,
+        "bugun_toplam": bugun_toplam,
+        "bugun_izinli": bugun_izinli,
+        "bugun_yetkisiz": bugun_yetkisiz,
+    }
