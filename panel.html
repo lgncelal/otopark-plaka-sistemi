@@ -35,33 +35,25 @@
             font-size: 14px;
         }
         button:hover { background: #16213e; }
-        #sonuc {
-            margin-top: 16px;
-            padding: 16px;
-            border-radius: 8px;
-            display: none;
-        }
-        .izinli { background: #d4edda; color: #155724; }
-        .yetkisiz { background: #f8d7da; color: #721c24; }
         table { width: 100%; border-collapse: collapse; }
         th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; }
         th { color: #666; font-size: 13px; text-transform: uppercase; }
         .rozet { padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
         .rozet-yes { background: #d4edda; color: #155724; }
         .rozet-no { background: #f8d7da; color: #721c24; }
-                .gorsel-alan { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
+
+        .gorsel-alan { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; align-items: flex-start; }
         .gorsel-kutu { text-align: center; }
         .gorsel-kutu span { display: block; font-size: 12px; color: #666; margin-bottom: 6px; text-transform: uppercase; }
         .gorsel-kutu img { border-radius: 8px; border: 1px solid #ddd; }
         .arac-img { max-width: 320px; max-height: 240px; }
-        .plaka-img { max-height: 80px; background: #fff; padding: 4px; }
-                .ekle-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+        .plaka-img { max-height: 70px; background: #fff; padding: 4px; }
+
+        .ekle-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
         .ekle-form input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
         .sil-btn { background: #c0392b; padding: 5px 12px; font-size: 12px; }
         .sil-btn:hover { background: #a93226; }
 
-
-                /* Toast bildirim */
         #toast {
             position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
             padding: 14px 24px; border-radius: 10px; color: #fff; font-weight: 500;
@@ -71,7 +63,7 @@
         #toast.goster { opacity: 1; top: 40px; }
         #toast.basari { background: #27ae60; }
         #toast.hata { background: #c0392b; }
-        /* Onay penceresi */
+
         #onayArka {
             position: fixed; inset: 0; background: rgba(0,0,0,0.5);
             display: none; align-items: center; justify-content: center; z-index: 1001;
@@ -87,6 +79,9 @@
         .onay-sil { background: #c0392b; }
         .onay-sil:hover { background: #a93226; }
 
+        .sonuc { margin-top: 16px; padding: 16px; border-radius: 8px; display: none; }
+        .sonuc.izinli { background: #d4edda; color: #155724; }
+        .sonuc.yetkisiz { background: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
@@ -100,17 +95,18 @@
             </div>
         </div>
     </div>
+
     <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
-    <p class="alt">Araç fotoğrafı yükleyin, sistem plakayı okuyup giriş iznini kontrol etsin.</p>
+    <p class="alt">Araç fotoğrafı yükleyin; sistem plakayı okuyup kayıtlı olup olmadığını kontrol eder ve giriş iznini verir.</p>
 
     <div class="kart">
-        <h2>Araç Girişi</h2>
+        <h2>🎥 Giriş Kamerası</h2>
         <input type="file" id="foto" accept="image/*"><br>
         <button onclick="girisYap()">Plakayı Oku ve Kontrol Et</button>
-        <div id="sonuc"></div>
+        <div id="sonuc" class="sonuc"></div>
     </div>
 
-        <div class="kart">
+    <div class="kart">
         <h2>Kayıtlı Araçlar</h2>
         <div class="ekle-form">
             <input type="text" id="yeniPlaka" placeholder="Plaka (örn. 34ABC123)">
@@ -132,7 +128,6 @@
     </div>
 
     <script>
-                // Toast bildirim göster
         function toastGoster(mesaj, tip = 'basari') {
             const t = document.getElementById('toast');
             t.textContent = mesaj;
@@ -140,7 +135,6 @@
             setTimeout(() => { t.className = ''; }, 3000);
         }
 
-        // Onay penceresi (silme için)
         let onayCallback = null;
         function onayAc(mesaj, callback) {
             document.getElementById('onayMetin').textContent = mesaj;
@@ -156,10 +150,9 @@
             onayKapat();
         };
 
-        // Araç girişi: foto yükle, /giris endpoint'ine gönder
         async function girisYap() {
             const dosya = document.getElementById('foto').files[0];
-            if (!dosya) { alert('Önce bir fotoğraf seçin.'); return; }
+            if (!dosya) { toastGoster('Önce bir fotoğraf seçin.', 'hata'); return; }
 
             const form = new FormData();
             form.append('dosya', dosya);
@@ -170,42 +163,40 @@
             const sonuc = document.getElementById('sonuc');
             sonuc.style.display = 'block';
 
-                        if (!veri.bulundu) {
-                sonuc.className = 'yetkisiz';
+            if (!veri.bulundu) {
+                sonuc.className = 'sonuc yetkisiz';
                 sonuc.innerHTML = 'Plaka okunamadı. Daha net bir fotoğraf deneyin.';
-            } else {
-                // Metin kısmı (izinli / yetkisiz)
-                let metin;
-                if (veri.izinli) {
-                    sonuc.className = 'izinli';
-                    metin = `<b>${veri.plaka}</b> — ${veri.mesaj}<br>Sahip: ${veri.sahip}`;
-                } else {
-                    sonuc.className = 'yetkisiz';
-                    metin = `<b>${veri.plaka}</b> — ${veri.mesaj}`;
-                }
-
-                // Görsel kısmı (araç fotosu + kırpılmış plaka)
-                const gorseller = `
-                    <div class="gorsel-alan">
-                        <div class="gorsel-kutu">
-                            <span>Araç</span>
-                            <img class="arac-img" src="data:image/jpeg;base64,${veri.arac_foto}">
-                        </div>
-                        <div class="gorsel-kutu">
-                            <span>Tespit Edilen Plaka</span>
-                            <img class="plaka-img" src="data:image/jpeg;base64,${veri.plaka_foto}">
-                        </div>
-                    </div>`;
-
-                sonuc.innerHTML = metin + gorseller;
+                return;
             }
-            listeleriYenile();  // giriş sonrası tabloları güncelle
+
+            let metin;
+            if (veri.izinli) {
+                sonuc.className = 'sonuc izinli';
+                metin = `<b>${veri.plaka}</b> — ${veri.mesaj}<br>Sahip: ${veri.sahip}`;
+            } else {
+                sonuc.className = 'sonuc yetkisiz';
+                metin = `<b>${veri.plaka}</b> — ${veri.mesaj}`;
+            }
+
+            const gorseller = `
+                <div class="gorsel-alan">
+                    <div class="gorsel-kutu">
+                        <span>Araç</span>
+                        <img class="arac-img" src="data:image/jpeg;base64,${veri.arac_foto}">
+                    </div>
+                    <div class="gorsel-kutu">
+                        <span>Tespit Edilen Plaka</span>
+                        <img class="plaka-img" src="data:image/jpeg;base64,${veri.plaka_foto}">
+                    </div>
+                </div>`;
+
+            sonuc.innerHTML = metin + gorseller;
+            listeleriYenile();
         }
 
-        // Kayıtlı plakalar ve logları yükle
         async function listeleriYenile() {
             const kp = await (await fetch('/kayitli-plakalar')).json();
-                        document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
+            document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
                 `<tr>
                     <td>${p.plaka}</td>
                     <td>${p.sahip || '-'}</td>
@@ -214,18 +205,18 @@
             ).join('');
 
             const lg = await (await fetch('/loglar')).json();
-            document.getElementById('logTablo').innerHTML = lg.map(l =>
-                `<tr>
+            document.getElementById('logTablo').innerHTML = lg.map(l => {
+                const durumRozet = l.izinli
+                    ? '<span class="rozet rozet-yes">İzinli</span>'
+                    : '<span class="rozet rozet-no">Yetkisiz</span>';
+                return `<tr>
                     <td>${l.plaka}</td>
                     <td>${l.zaman}</td>
-                    <td><span class="rozet ${l.izinli ? 'rozet-yes' : 'rozet-no'}">
-                        ${l.izinli ? 'İzinli' : 'Yetkisiz'}
-                    </span></td>
-                </tr>`
-            ).join('');
+                    <td>${durumRozet}</td>
+                </tr>`;
+            }).join('');
         }
 
-                // Yeni plaka ekle
         async function plakaEkle() {
             const plaka = document.getElementById('yeniPlaka').value.trim();
             const sahip = document.getElementById('yeniSahip').value.trim();
@@ -247,7 +238,6 @@
             }
         }
 
-        // Plaka sil
         function plakaSil(id) {
             onayAc('Bu plakayı silmek istediğinize emin misiniz?', async () => {
                 const yanit = await fetch('/plaka-sil/' + id, { method: 'DELETE' });
@@ -260,7 +250,6 @@
             });
         }
 
-        // Sayfa açılınca tabloları doldur
         listeleriYenile();
     </script>
 </body>

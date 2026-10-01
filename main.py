@@ -2,25 +2,29 @@ import shutil
 import os
 import base64
 import io
-from PIL import Image
-from fastapi.responses import HTMLResponse, FileResponse
+from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, Depends, Form, HTTPException
+from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
+from PIL import Image
 from fast_alpr import ALPR
 
 from database import engine, Base, get_db
 from models import KayitliPlaka, GirisLog
 
-# Uygulama açılırken tabloların var olduğundan emin ol
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Otopark Plaka Sistemi")
 
-# ALPR sistemini uygulama açılırken bir kez başlat
 alpr = ALPR(
     detector_model="yolo-v9-t-384-license-plate-end2end",
     ocr_model="cct-xs-v1-global-model",
 )
+
+
+@app.get("/", response_class=HTMLResponse)
+def ana_sayfa():
+    return FileResponse("panel.html")
 
 
 @app.get("/health")
@@ -30,28 +34,26 @@ def health():
 
 @app.post("/giris")
 async def giris(dosya: UploadFile = File(...), db: Session = Depends(get_db)):
-    # 1. Yüklenen fotoğrafı geçici kaydet
+    # 1. Fotoğrafı geçici kaydet
     gecici_yol = f"gecici_{dosya.filename}"
     with open(gecici_yol, "wb") as f:
         shutil.copyfileobj(dosya.file, f)
 
     # 2. Plakayı oku
     sonuclar = alpr.predict(gecici_yol)
-
     if not sonuclar:
         os.remove(gecici_yol)
         return {"bulundu": False, "mesaj": "Plaka okunamadı"}
 
-    # 3. Okunan plakayı ve konumunu al
+    # 3. Plaka + konum
     sonuc = sonuclar[0]
     plaka = sonuc.ocr.text
-    kutu = sonuc.detection.bounding_box  # x1, y1, x2, y2
+    kutu = sonuc.detection.bounding_box
 
-    # 4. Görseli aç, plaka bölgesini kırp
+    # 4. Görselleri hazırla
     gorsel = Image.open(gecici_yol).convert("RGB")
     plaka_kirpik = gorsel.crop((kutu.x1, kutu.y1, kutu.x2, kutu.y2))
 
-    # 5. Her iki görseli de base64 metnine çevir (panelde göstermek için)
     def gorsel_to_base64(img):
         tampon = io.BytesIO()
         img.save(tampon, format="JPEG")
@@ -59,36 +61,33 @@ async def giris(dosya: UploadFile = File(...), db: Session = Depends(get_db)):
 
     arac_foto_b64 = gorsel_to_base64(gorsel)
     plaka_foto_b64 = gorsel_to_base64(plaka_kirpik)
-
     os.remove(gecici_yol)
 
-    # 6. Kayıtlı mı diye kontrol et
+    # 5. Kayıtlı mı? -> izinli/yetkisiz
     kayit = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
     izinli = kayit is not None
 
-    # 7. Log kaydet
+    # 6. Logla
     log = GirisLog(plaka=plaka, izinli=izinli)
     db.add(log)
     db.commit()
 
-    # 8. Sonucu görsellerle birlikte dön
+    # 7. Sonucu dön
     return {
         "bulundu": True,
         "plaka": plaka,
         "izinli": izinli,
         "sahip": kayit.sahip_adi if kayit else None,
-        "mesaj": "Giriş izni verildi" if izinli else "Yetkisiz araç",
+        "mesaj": "Kapı açıldı - giriş izni verildi" if izinli else "Yetkisiz araç - giriş reddedildi",
         "arac_foto": arac_foto_b64,
         "plaka_foto": plaka_foto_b64,
     }
 
+
 @app.get("/kayitli-plakalar")
 def kayitli_plakalar(db: Session = Depends(get_db)):
     plakalar = db.query(KayitliPlaka).all()
-    return [
-        {"id": p.id, "plaka": p.plaka, "sahip": p.sahip_adi}
-        for p in plakalar
-    ]
+    return [{"id": p.id, "plaka": p.plaka, "sahip": p.sahip_adi} for p in plakalar]
 
 
 @app.get("/loglar")
@@ -104,24 +103,16 @@ def loglar(db: Session = Depends(get_db)):
         for k in kayitlar
     ]
 
-@app.post("/plaka-ekle")
-def plaka_ekle(
-    plaka: str = Form(...),
-    sahip: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    # Plakayı temizle: boşlukları sil, büyük harfe çevir
-    plaka = plaka.replace(" ", "").upper()
 
-    # Sahip adını düzenle: baş harfler büyük (Title Case)
+@app.post("/plaka-ekle")
+def plaka_ekle(plaka: str = Form(...), sahip: str = Form(...), db: Session = Depends(get_db)):
+    plaka = plaka.replace(" ", "").upper()
     sahip = sahip.strip().title()
 
-    # Zaten kayıtlı mı kontrol et
     mevcut = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
     if mevcut:
         raise HTTPException(status_code=400, detail="Bu plaka zaten kayıtlı")
 
-    # Yeni plakayı ekle
     yeni = KayitliPlaka(plaka=plaka, sahip_adi=sahip)
     db.add(yeni)
     db.commit()
@@ -133,11 +124,6 @@ def plaka_sil(plaka_id: int, db: Session = Depends(get_db)):
     kayit = db.query(KayitliPlaka).filter(KayitliPlaka.id == plaka_id).first()
     if not kayit:
         raise HTTPException(status_code=404, detail="Plaka bulunamadı")
-
     db.delete(kayit)
     db.commit()
     return {"basarili": True}
-
-@app.get("/", response_class=HTMLResponse)
-def ana_sayfa():
-    return FileResponse("panel.html")

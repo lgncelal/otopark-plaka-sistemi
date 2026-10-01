@@ -3,7 +3,6 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean
 from database import Base
 
 
-# Tablo 1: Otoparka girebilecek kayıtlı araçlar
 class KayitliPlaka(Base):
     __tablename__ = "kayitli_plakalar"
 
@@ -12,7 +11,6 @@ class KayitliPlaka(Base):
     sahip_adi = Column(String, nullable=True)
 
 
-# Tablo 2: Giriş denemelerinin kaydı (log)
 class GirisLog(Base):
     __tablename__ = "giris_loglari"
 
