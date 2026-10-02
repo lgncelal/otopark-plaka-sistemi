@@ -23,17 +23,15 @@ Araç fotoğrafından plakayı otomatik okuyup, aracın kayıtlı olup olmadığ
 | Model Çalıştırma | ONNX Runtime |
 
 ## 🏗️ Mimari
-┌─────────────┐ HTTP ┌──────────────┐
-│ Panel │ ──────────────► │ FastAPI │
-│ (HTML/JS) │ ◄────────────── │ (Backend) │
-└─────────────┘ JSON cevap └──────┬───────┘
-│
-┌──────────────┼──────────────┐
-▼ ▼
-┌─────────────┐ ┌─────────────┐
-│ fast-alpr │ │ SQLite │
-│ (Plaka AI) │ │ (Veritabanı)│
-└─────────────┘ └─────────────┘
+```mermaid
+flowchart TD
+    A[Kullanıcı - Web Panel<br/>HTML / CSS / JS] -->|Fotoğraf yükler HTTP| B[FastAPI Backend<br/>main.py]
+    B -->|Plaka tespiti + OCR| C[fast-alpr<br/>YOLOv9 + CCT-OCR]
+    C -->|Okunan plaka| B
+    B -->|Kayıtlı mı? sorgu| D[(SQLite Veritabanı<br/>SQLAlchemy ORM)]
+    D -->|İzinli / Yetkisiz| B
+    B -->|JSON sonuç + görseller| A
+```
 
 
 Kullanıcı panelden araç fotoğrafı yükler → FastAPI fotoğrafı alır → fast-alpr plakayı okur → SQLite'ta kayıtlı mı diye kontrol edilir → sonuç ve giriş kaydı panele döner.
