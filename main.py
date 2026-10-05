@@ -2,14 +2,13 @@ import shutil
 import os
 import base64
 import io
-from datetime import datetime
+import re
+from datetime import datetime, date, timedelta
 from fastapi import FastAPI, UploadFile, File, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from sqlalchemy.orm import Session
 from PIL import Image
 from fast_alpr import ALPR
-from datetime import date
-
 from database import engine, Base, get_db
 from models import KayitliPlaka, GirisLog
 
@@ -21,6 +20,9 @@ alpr = ALPR(
     detector_model="yolo-v9-t-384-license-plate-end2end",
     ocr_model="cct-xs-v1-global-model",
 )
+
+# Aynı plaka bu süre içinde tekrar loglanmaz (saniye)
+TEKRAR_ENGEL_SURESI = 60
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -50,6 +52,18 @@ async def giris(dosya: UploadFile = File(...), db: Session = Depends(get_db)):
     sonuc = sonuclar[0]
     plaka = sonuc.ocr.text
     kutu = sonuc.detection.bounding_box
+    plaka = plaka.replace(" ", "").upper()
+
+    # Türk plaka formatı: 2 rakam (il) + 1-3 harf + 2-4 rakam
+    turk_format = re.match(r"^(0[1-9]|[1-7][0-9]|8[01])[A-Z]{1,3}[0-9]{2,4}$", plaka)
+
+    # Kayıtlı mı?
+    kayit = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
+
+    # Ne Türk formatı ne kayıtlı -> muhtemelen hatalı okuma, işleme
+    if not turk_format and not kayit:
+        os.remove(gecici_yol)
+        return {"bulundu": False, "mesaj": "Geçerli plaka okunamadı"}
 
     # 4. Görselleri hazırla
     gorsel = Image.open(gecici_yol).convert("RGB")
@@ -64,18 +78,28 @@ async def giris(dosya: UploadFile = File(...), db: Session = Depends(get_db)):
     plaka_foto_b64 = gorsel_to_base64(plaka_kirpik)
     os.remove(gecici_yol)
 
-    # 5. Kayıtlı mı? -> izinli/yetkisiz
-    kayit = db.query(KayitliPlaka).filter(KayitliPlaka.plaka == plaka).first()
     izinli = kayit is not None
 
-    # 6. Logla
-    log = GirisLog(plaka=plaka, izinli=izinli)
-    db.add(log)
-    db.commit()
+    # 5. Tekrar kontrolü: bu plaka son TEKRAR_ENGEL_SURESI saniyede loglandı mı?
+    sinir = datetime.now() - timedelta(seconds=TEKRAR_ENGEL_SURESI)
+    yakin_kayit = (
+        db.query(GirisLog)
+        .filter(GirisLog.plaka == plaka, GirisLog.zaman >= sinir)
+        .first()
+    )
 
-    # 7. Sonucu dön
+    # Yeni kayıt sadece yakın zamanda aynı plaka yoksa açılır
+    yeni_kayit_acildi = False
+    if not yakin_kayit:
+        log = GirisLog(plaka=plaka, izinli=izinli)
+        db.add(log)
+        db.commit()
+        yeni_kayit_acildi = True
+
+    # 6. Sonucu dön (sonuç her zaman döner, ekranda görünür; log sadece yeni ise açılır)
     return {
         "bulundu": True,
+        "yeni_kayit": yeni_kayit_acildi,
         "plaka": plaka,
         "izinli": izinli,
         "sahip": kayit.sahip_adi if kayit else None,

@@ -89,6 +89,12 @@
         .ist-sayi.yesil { color: #27ae60; }
         .ist-sayi.kirmizi { color: #c0392b; }
         .ist-etiket { font-size: 13px; color: #666; margin-top: 4px; }
+
+        .kamera-kutu { margin-bottom: 12px; }
+        #kameraGoruntu { width: 100%; max-width: 480px; border-radius: 10px; background: #000; display: block; }
+        .kamera-butonlar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+        .dosya-alternatif { margin-bottom: 12px; font-size: 13px; color: #666; }
+        .dosya-alternatif summary { cursor: pointer; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -125,12 +131,26 @@
             </div>
         </div>
     </div>
-    <p class="alt">Araç fotoğrafı yükleyin; sistem plakayı okuyup kayıtlı olup olmadığını kontrol eder ve giriş iznini verir.</p>
+    <p class="alt">Araç fotoğrafı yükleyin veya kamerayı açıp otomatik modu başlatın; sistem plakayı okuyup kayıtlı olup olmadığını kontrol eder.</p>
 
     <div class="kart">
         <h2>🎥 Giriş Kamerası</h2>
-        <input type="file" id="foto" accept="image/*"><br>
-        <button onclick="girisYap()">Plakayı Oku ve Kontrol Et</button>
+        <div class="kamera-kutu">
+            <video id="kameraGoruntu" autoplay playsinline></video>
+            <canvas id="yakalamaCanvas" style="display:none;"></canvas>
+        </div>
+        <div class="kamera-butonlar">
+            <button onclick="kamerayiBaslat()">📷 Kamerayı Aç</button>
+            <button onclick="otomatikModToggle()" id="otoBtn" disabled>▶️ Otomatik Modu Başlat</button>
+        </div>
+        <div id="otoDurum" style="display:none; margin-bottom:12px; font-size:14px; color:#0f3460; font-weight:600;">
+            🔴 Otomatik mod aktif — kamera sürekli taranıyor...
+        </div>
+        <details class="dosya-alternatif">
+            <summary>veya dosyadan yükle</summary>
+            <input type="file" id="foto" accept="image/*"><br>
+            <button onclick="girisYap()">Dosyadan Oku ve Kontrol Et</button>
+        </details>
         <div id="sonuc" class="sonuc"></div>
     </div>
 
@@ -178,24 +198,94 @@
             onayKapat();
         };
 
+        let kameraAkisi = null;
+
+        async function kamerayiBaslat() {
+            try {
+                kameraAkisi = await navigator.mediaDevices.getUserMedia({ video: true });
+                const video = document.getElementById('kameraGoruntu');
+                video.srcObject = kameraAkisi;
+                document.getElementById('otoBtn').disabled = false;
+                toastGoster('Kamera açıldı.');
+            } catch (err) {
+                toastGoster('Kamera açılamadı: ' + err.message, 'hata');
+            }
+        }
+
+        // ---- Otomatik mod: her 2 sn kare gönder, tekrar kontrolünü backend yapar ----
+        let otomatikModAktif = false;
+        let otomatikInterval = null;
+        let islemDevamEdiyor = false;   // aynı anda iki istek gitmesini önle
+
+        function otomatikModToggle() {
+            otomatikModAktif = !otomatikModAktif;
+            const btn = document.getElementById('otoBtn');
+            const durum = document.getElementById('otoDurum');
+
+            if (otomatikModAktif) {
+                btn.textContent = '⏸️ Otomatik Modu Durdur';
+                durum.style.display = 'block';
+                otomatikInterval = setInterval(otomatikKareKontrol, 2000);
+            } else {
+                btn.textContent = '▶️ Otomatik Modu Başlat';
+                durum.style.display = 'none';
+                clearInterval(otomatikInterval);
+            }
+        }
+
+        async function otomatikKareKontrol() {
+            if (islemDevamEdiyor) return;  // önceki işlem bitmediyse bekle
+            islemDevamEdiyor = true;
+
+            const video = document.getElementById('kameraGoruntu');
+            const canvas = document.getElementById('yakalamaCanvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+
+            canvas.toBlob(async (blob) => {
+                const form = new FormData();
+                form.append('dosya', blob, 'kamera.jpg');
+
+                const yanit = await fetch('/giris', { method: 'POST', body: form });
+                const veri = await yanit.json();
+
+                // Backend sadece yeni kayıt açtıysa ekrana yansıt ve tabloyu yenile
+                if (veri.bulundu && veri.yeni_kayit) {
+                    sonucGoster(veri);
+                    listeleriYenile();
+                }
+
+                islemDevamEdiyor = false;
+            }, 'image/jpeg');
+        }
+
+        // ---- Dosyadan yükleme ----
         async function girisYap() {
             const dosya = document.getElementById('foto').files[0];
             if (!dosya) { toastGoster('Önce bir fotoğraf seçin.', 'hata'); return; }
-
             const form = new FormData();
             form.append('dosya', dosya);
+            await gonderVeGoster(form);
+        }
 
+        async function gonderVeGoster(form) {
             const yanit = await fetch('/giris', { method: 'POST', body: form });
             const veri = await yanit.json();
-
-            const sonuc = document.getElementById('sonuc');
-            sonuc.style.display = 'block';
-
             if (!veri.bulundu) {
+                const sonuc = document.getElementById('sonuc');
+                sonuc.style.display = 'block';
                 sonuc.className = 'sonuc yetkisiz';
-                sonuc.innerHTML = 'Plaka okunamadı. Daha net bir fotoğraf deneyin.';
+                sonuc.innerHTML = 'Plaka okunamadı. Daha net bir görüntü deneyin.';
                 return;
             }
+            sonucGoster(veri);
+            listeleriYenile();
+        }
+
+        function sonucGoster(veri) {
+            const sonuc = document.getElementById('sonuc');
+            sonuc.style.display = 'block';
 
             let metin;
             if (veri.izinli) {
@@ -219,7 +309,6 @@
                 </div>`;
 
             sonuc.innerHTML = metin + gorseller;
-            listeleriYenile();
         }
 
         async function listeleriYenile() {
@@ -244,7 +333,6 @@
                 </tr>`;
             }).join('');
 
-            // İstatistikleri de güncelle
             const ist = await (await fetch('/istatistik')).json();
             document.getElementById('istKayitli').textContent = ist.toplam_kayitli;
             document.getElementById('istToplam').textContent = ist.bugun_toplam;
