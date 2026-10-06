@@ -173,3 +173,19 @@ def istatistik(db: Session = Depends(get_db)):
         "bugun_izinli": bugun_izinli,
         "bugun_yetkisiz": bugun_yetkisiz,
     }
+
+@app.get("/plaka-gecmis/{plaka}")
+def plaka_gecmis(plaka: str, db: Session = Depends(get_db)):
+    kayitlar = (
+        db.query(GirisLog)
+        .filter(GirisLog.plaka == plaka)
+        .order_by(GirisLog.zaman.desc())
+        .all()
+    )
+    return [
+        {
+            "zaman": k.zaman.strftime("%d.%m.%Y %H:%M:%S"),
+            "izinli": k.izinli,
+        }
+        for k in kayitlar
+    ]

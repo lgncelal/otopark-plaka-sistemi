@@ -54,6 +54,14 @@
         .sil-btn { background: #c0392b; padding: 5px 12px; font-size: 12px; }
         .sil-btn:hover { background: #a93226; }
 
+        .arama-kutu {
+            padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px;
+            font-size: 14px; margin-bottom: 16px; width: 100%; max-width: 300px;
+        }
+        .log-alan { height: 400px; overflow-y: auto; }        
+        .plaka-link { color: #0f3460; font-weight: 600; text-decoration: none; cursor: pointer; }
+        .plaka-link:hover { text-decoration: underline; }
+
         #toast {
             position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
             padding: 14px 24px; border-radius: 10px; color: #fff; font-weight: 500;
@@ -64,15 +72,16 @@
         #toast.basari { background: #27ae60; }
         #toast.hata { background: #c0392b; }
 
-        #onayArka {
+        .modal-arka {
             position: fixed; inset: 0; background: rgba(0,0,0,0.5);
             display: none; align-items: center; justify-content: center; z-index: 1001;
         }
-        #onayKutu {
-            background: #fff; border-radius: 12px; padding: 24px; max-width: 380px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+        .modal-kutu {
+            background: #fff; border-radius: 12px; padding: 24px; max-width: 480px; width: 90%;
+            max-height: 80vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
         }
-        #onayKutu p { margin-bottom: 20px; font-size: 15px; color: #16213e; }
+        .modal-kutu h2 { margin-bottom: 16px; color: #16213e; }
+        .modal-kutu p { margin-bottom: 20px; font-size: 15px; color: #16213e; }
         .onay-btnlar { display: flex; gap: 10px; justify-content: flex-end; }
         .onay-iptal { background: #999; }
         .onay-iptal:hover { background: #777; }
@@ -99,13 +108,27 @@
 </head>
 <body>
     <div id="toast"></div>
-    <div id="onayArka">
-        <div id="onayKutu">
+
+    <!-- Silme onay penceresi -->
+    <div id="onayArka" class="modal-arka">
+        <div class="modal-kutu" style="max-width:380px;">
             <p id="onayMetin">Emin misiniz?</p>
             <div class="onay-btnlar">
                 <button class="onay-iptal" onclick="onayKapat()">İptal</button>
                 <button class="onay-sil" id="onayEvetBtn">Sil</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Plaka geçmişi penceresi -->
+    <div id="gecmisArka" class="modal-arka">
+        <div class="modal-kutu">
+            <h2 id="gecmisBaslik">Plaka Geçmişi</h2>
+            <table>
+                <thead><tr><th>Zaman</th><th>Durum</th></tr></thead>
+                <tbody id="gecmisTablo"></tbody>
+            </table>
+            <button onclick="gecmisKapat()" style="margin-top:20px;">Kapat</button>
         </div>
     </div>
 
@@ -169,10 +192,13 @@
 
     <div class="kart">
         <h2>Giriş Kayıtları</h2>
-        <table>
-            <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
-            <tbody id="logTablo"></tbody>
-        </table>
+        <input type="text" id="aramaKutu" class="arama-kutu" placeholder="Plakaya göre ara..." oninput="logTabloDoldur()">
+        <div class="log-alan">
+            <table>
+                <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
+                <tbody id="logTablo"></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -215,7 +241,7 @@
         // ---- Otomatik mod: her 2 sn kare gönder, tekrar kontrolünü backend yapar ----
         let otomatikModAktif = false;
         let otomatikInterval = null;
-        let islemDevamEdiyor = false;   // aynı anda iki istek gitmesini önle
+        let islemDevamEdiyor = false;
 
         function otomatikModToggle() {
             otomatikModAktif = !otomatikModAktif;
@@ -234,7 +260,7 @@
         }
 
         async function otomatikKareKontrol() {
-            if (islemDevamEdiyor) return;  // önceki işlem bitmediyse bekle
+            if (islemDevamEdiyor) return;
             islemDevamEdiyor = true;
 
             const video = document.getElementById('kameraGoruntu');
@@ -250,7 +276,6 @@
                 const yanit = await fetch('/giris', { method: 'POST', body: form });
                 const veri = await yanit.json();
 
-                // Backend sadece yeni kayıt açtıysa ekrana yansıt ve tabloyu yenile
                 if (veri.bulundu && veri.yeni_kayit) {
                     sonucGoster(veri);
                     listeleriYenile();
@@ -311,6 +336,9 @@
             sonuc.innerHTML = metin + gorseller;
         }
 
+        // ---- Listeler ----
+        let tumLoglar = [];  // arama için loglar burada tutulur
+
         async function listeleriYenile() {
             const kp = await (await fetch('/kayitli-plakalar')).json();
             document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
@@ -321,23 +349,51 @@
                 </tr>`
             ).join('');
 
-            const lg = await (await fetch('/loglar')).json();
-            document.getElementById('logTablo').innerHTML = lg.map(l => {
-                const durumRozet = l.izinli
-                    ? '<span class="rozet rozet-yes">İzinli</span>'
-                    : '<span class="rozet rozet-no">Yetkisiz</span>';
-                return `<tr>
-                    <td>${l.plaka}</td>
-                    <td>${l.zaman}</td>
-                    <td>${durumRozet}</td>
-                </tr>`;
-            }).join('');
+            tumLoglar = await (await fetch('/loglar')).json();
+            logTabloDoldur();
 
             const ist = await (await fetch('/istatistik')).json();
             document.getElementById('istKayitli').textContent = ist.toplam_kayitli;
             document.getElementById('istToplam').textContent = ist.bugun_toplam;
             document.getElementById('istIzinli').textContent = ist.bugun_izinli;
             document.getElementById('istYetkisiz').textContent = ist.bugun_yetkisiz;
+        }
+
+        // Log tablosunu arama filtresine göre doldur
+        function logTabloDoldur() {
+            const arama = document.getElementById('aramaKutu').value.trim().toUpperCase();
+            const filtreli = arama
+                ? tumLoglar.filter(l => l.plaka.includes(arama))
+                : tumLoglar;
+
+            document.getElementById('logTablo').innerHTML = filtreli.map(l => {
+                const durumRozet = l.izinli
+                    ? '<span class="rozet rozet-yes">İzinli</span>'
+                    : '<span class="rozet rozet-no">Yetkisiz</span>';
+                return `<tr>
+                    <td><a class="plaka-link" onclick="plakaGecmisGoster('${l.plaka}')">${l.plaka}</a></td>
+                    <td>${l.zaman}</td>
+                    <td>${durumRozet}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Bir plakanın tüm geçmişini modal'da göster
+        async function plakaGecmisGoster(plaka) {
+            const gecmis = await (await fetch('/plaka-gecmis/' + plaka)).json();
+            document.getElementById('gecmisBaslik').textContent =
+                plaka + ' — Giriş Geçmişi (' + gecmis.length + ' kayıt)';
+            document.getElementById('gecmisTablo').innerHTML = gecmis.map(g => {
+                const durumRozet = g.izinli
+                    ? '<span class="rozet rozet-yes">İzinli</span>'
+                    : '<span class="rozet rozet-no">Yetkisiz</span>';
+                return `<tr><td>${g.zaman}</td><td>${durumRozet}</td></tr>`;
+            }).join('');
+            document.getElementById('gecmisArka').style.display = 'flex';
+        }
+
+        function gecmisKapat() {
+            document.getElementById('gecmisArka').style.display = 'none';
         }
 
         async function plakaEkle() {
