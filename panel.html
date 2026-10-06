@@ -51,8 +51,11 @@
 
         .ekle-form { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
         .ekle-form input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; }
-        .sil-btn { background: #c0392b; padding: 5px 12px; font-size: 12px; }
+        .islem-btn { padding: 5px 12px; font-size: 12px; margin-right: 4px; }
+        .sil-btn { background: #c0392b; }
         .sil-btn:hover { background: #a93226; }
+        .duzenle-btn { background: #e67e22; }
+        .duzenle-btn:hover { background: #ca6f1e; }
 
         .filtre-alan { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: flex-end; }
         .filtre-grup { display: flex; flex-direction: column; gap: 4px; }
@@ -63,6 +66,8 @@
         .arama-kutu { min-width: 200px; }
         .filtre-temizle { background: #999; padding: 8px 14px; font-size: 13px; }
         .filtre-temizle:hover { background: #777; }
+        .csv-btn { background: #27ae60; padding: 8px 14px; font-size: 13px; }
+        .csv-btn:hover { background: #1e8449; }
         .log-alan { height: 400px; overflow-y: auto; }
         .plaka-link { color: #0f3460; font-weight: 600; text-decoration: none; cursor: pointer; }
         .plaka-link:hover { text-decoration: underline; }
@@ -87,11 +92,18 @@
         }
         .modal-kutu h2 { margin-bottom: 16px; color: #16213e; }
         .modal-kutu p { margin-bottom: 20px; font-size: 15px; color: #16213e; }
+        .modal-kutu input {
+            width: 100%; padding: 10px 12px; border: 1px solid #ccc; border-radius: 8px;
+            font-size: 14px; margin-bottom: 12px;
+        }
+        .modal-kutu label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
         .onay-btnlar { display: flex; gap: 10px; justify-content: flex-end; }
         .onay-iptal { background: #999; }
         .onay-iptal:hover { background: #777; }
         .onay-sil { background: #c0392b; }
         .onay-sil:hover { background: #a93226; }
+        .onay-kaydet { background: #27ae60; }
+        .onay-kaydet:hover { background: #1e8449; }
 
         .sonuc { margin-top: 16px; padding: 16px; border-radius: 8px; display: none; }
         .sonuc.izinli { background: #d4edda; color: #155724; }
@@ -109,10 +121,53 @@
         .kamera-butonlar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
         .dosya-alternatif { margin-bottom: 12px; font-size: 13px; color: #666; }
         .dosya-alternatif summary { cursor: pointer; margin-bottom: 8px; }
+
+        #girisEkrani {
+            position: fixed; inset: 0; background: #16213e;
+            display: flex; align-items: center; justify-content: center; z-index: 2000;
+        }
+        .giris-kutu {
+            background: #fff; border-radius: 16px; padding: 40px; width: 90%; max-width: 360px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.3);
+        }
+        .giris-kutu h2 { text-align: center; margin-bottom: 8px; color: #16213e; }
+        .giris-kutu .giris-alt { text-align: center; color: #888; font-size: 13px; margin-bottom: 24px; }
+        .giris-kutu input {
+            width: 100%; padding: 12px 14px; border: 1px solid #ccc; border-radius: 8px;
+            font-size: 14px; margin-bottom: 12px;
+        }
+        .giris-kutu button { width: 100%; padding: 12px; font-size: 15px; }
+        .giris-ipucu { font-size: 12px; color: #aaa; text-align: center; margin-top: 16px; line-height: 1.6; }
+
+        .ust-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+        }
+        .kullanici-bilgi { font-size: 14px; color: #555; }
+        .kullanici-bilgi b { color: #16213e; }
+        .rol-rozet { padding: 2px 10px; border-radius: 10px; font-size: 12px; font-weight: 600; margin-left: 6px; }
+        .rol-admin { background: #e7d4ff; color: #5a2d8c; }
+        .rol-gorevli { background: #d1ecf1; color: #0c5460; }
+        .cikis-btn { background: #c0392b; padding: 8px 16px; font-size: 13px; }
+        .cikis-btn:hover { background: #a93226; }
+
+        .sadece-admin { display: none; }
     </style>
 </head>
 <body>
     <div id="toast"></div>
+
+    <!-- GİRİŞ EKRANI -->
+    <div id="girisEkrani">
+        <div class="giris-kutu">
+            <h2>🅿️ Otopark Sistemi</h2>
+            <p class="giris-alt">Devam etmek için giriş yapın</p>
+            <input type="text" id="girisKullanici" placeholder="Kullanıcı adı">
+            <input type="password" id="girisSifre" placeholder="Şifre" onkeydown="if(event.key==='Enter') girisYapKullanici()">
+            <button onclick="girisYapKullanici()">Giriş Yap</button>
+            <p class="giris-ipucu">Test: admin / admin123 &nbsp;•&nbsp; gorevli / gorevli123</p>
+        </div>
+    </div>
 
     <!-- Silme onay penceresi -->
     <div id="onayArka" class="modal-arka">
@@ -121,6 +176,21 @@
             <div class="onay-btnlar">
                 <button class="onay-iptal" onclick="onayKapat()">İptal</button>
                 <button class="onay-sil" id="onayEvetBtn">Sil</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Düzenleme penceresi -->
+    <div id="duzenleArka" class="modal-arka">
+        <div class="modal-kutu" style="max-width:380px;">
+            <h2>Plaka Düzenle</h2>
+            <label>Plaka</label>
+            <input type="text" id="duzenlePlaka">
+            <label>Sahip adı</label>
+            <input type="text" id="duzenleSahip">
+            <div class="onay-btnlar">
+                <button class="onay-iptal" onclick="duzenleKapat()">İptal</button>
+                <button class="onay-kaydet" onclick="duzenleKaydet()">Kaydet</button>
             </div>
         </div>
     </div>
@@ -137,90 +207,161 @@
         </div>
     </div>
 
-    <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
-    <div class="kart">
-        <h2>📊 Özet</h2>
-        <div class="istatistik-alan">
-            <div class="ist-kutu">
-                <div class="ist-sayi" id="istKayitli">0</div>
-                <div class="ist-etiket">Kayıtlı Araç</div>
-            </div>
-            <div class="ist-kutu">
-                <div class="ist-sayi" id="istToplam">0</div>
-                <div class="ist-etiket">Bugünkü Giriş</div>
-            </div>
-            <div class="ist-kutu">
-                <div class="ist-sayi yesil" id="istIzinli">0</div>
-                <div class="ist-etiket">İzinli</div>
-            </div>
-            <div class="ist-kutu">
-                <div class="ist-sayi kirmizi" id="istYetkisiz">0</div>
-                <div class="ist-etiket">Yetkisiz</div>
+    <!-- ANA İÇERİK -->
+    <div id="anaIcerik" style="display:none;">
+        <div class="ust-bar">
+            <h1>🅿️ Otopark Plaka Tanıma Sistemi</h1>
+            <div class="kullanici-bilgi">
+                👤 <b id="aktifKullaniciAdi"></b>
+                <span id="aktifRolRozet" class="rol-rozet"></span>
+                &nbsp;
+                <button class="cikis-btn" onclick="cikisYap()">Çıkış</button>
             </div>
         </div>
-    </div>
-    <p class="alt">Araç fotoğrafı yükleyin veya kamerayı açıp otomatik modu başlatın; sistem plakayı okuyup kayıtlı olup olmadığını kontrol eder.</p>
 
-    <div class="kart">
-        <h2>🎥 Giriş Kamerası</h2>
-        <div class="kamera-kutu">
-            <video id="kameraGoruntu" autoplay playsinline></video>
-            <canvas id="yakalamaCanvas" style="display:none;"></canvas>
+        <div class="kart">
+            <h2>📊 Özet</h2>
+            <div class="istatistik-alan">
+                <div class="ist-kutu">
+                    <div class="ist-sayi" id="istKayitli">0</div>
+                    <div class="ist-etiket">Kayıtlı Araç</div>
+                </div>
+                <div class="ist-kutu">
+                    <div class="ist-sayi" id="istToplam">0</div>
+                    <div class="ist-etiket">Bugünkü Giriş</div>
+                </div>
+                <div class="ist-kutu">
+                    <div class="ist-sayi yesil" id="istIzinli">0</div>
+                    <div class="ist-etiket">İzinli</div>
+                </div>
+                <div class="ist-kutu">
+                    <div class="ist-sayi kirmizi" id="istYetkisiz">0</div>
+                    <div class="ist-etiket">Yetkisiz</div>
+                </div>
+            </div>
         </div>
-        <div class="kamera-butonlar">
-            <button onclick="kamerayiBaslat()">📷 Kamerayı Aç</button>
-            <button onclick="otomatikModToggle()" id="otoBtn" disabled>▶️ Otomatik Modu Başlat</button>
-        </div>
-        <div id="otoDurum" style="display:none; margin-bottom:12px; font-size:14px; color:#0f3460; font-weight:600;">
-            🔴 Otomatik mod aktif — kamera sürekli taranıyor...
-        </div>
-        <details class="dosya-alternatif">
-            <summary>veya dosyadan yükle</summary>
-            <input type="file" id="foto" accept="image/*"><br>
-            <button onclick="girisYap()">Dosyadan Oku ve Kontrol Et</button>
-        </details>
-        <div id="sonuc" class="sonuc"></div>
-    </div>
 
-    <div class="kart">
-        <h2>Kayıtlı Araçlar</h2>
-        <div class="ekle-form">
-            <input type="text" id="yeniPlaka" placeholder="Plaka (örn. 34ABC123)">
-            <input type="text" id="yeniSahip" placeholder="Sahip adı">
-            <button onclick="plakaEkle()">Ekle</button>
+        <div class="kart">
+            <h2>🎥 Giriş Kamerası</h2>
+            <div class="kamera-kutu">
+                <video id="kameraGoruntu" autoplay playsinline></video>
+                <canvas id="yakalamaCanvas" style="display:none;"></canvas>
+            </div>
+            <div class="kamera-butonlar">
+                <button onclick="kamerayiBaslat()">📷 Kamerayı Aç</button>
+                <button onclick="otomatikModToggle()" id="otoBtn" disabled>▶️ Otomatik Modu Başlat</button>
+            </div>
+            <div id="otoDurum" style="display:none; margin-bottom:12px; font-size:14px; color:#0f3460; font-weight:600;">
+                🔴 Otomatik mod aktif — kamera sürekli taranıyor...
+            </div>
+            <details class="dosya-alternatif">
+                <summary>veya dosyadan yükle</summary>
+                <input type="file" id="foto" accept="image/*"><br>
+                <button onclick="girisYap()">Dosyadan Oku ve Kontrol Et</button>
+            </details>
+            <div id="sonuc" class="sonuc"></div>
         </div>
-        <table>
-            <thead><tr><th>Plaka</th><th>Sahip</th><th></th></tr></thead>
-            <tbody id="kayitliTablo"></tbody>
-        </table>
-    </div>
 
-    <div class="kart">
-        <h2>Giriş Kayıtları</h2>
-        <div class="filtre-alan">
-            <div class="filtre-grup">
-                <label>Plaka ara</label>
-                <input type="text" id="aramaKutu" class="arama-kutu" placeholder="Plakaya göre ara..." oninput="logTabloDoldur()">
+        <div class="kart">
+            <h2>Kayıtlı Araçlar</h2>
+            <div class="ekle-form sadece-admin">
+                <input type="text" id="yeniPlaka" placeholder="Plaka (örn. 34ABC123)">
+                <input type="text" id="yeniSahip" placeholder="Sahip adı">
+                <button onclick="plakaEkle()">Ekle</button>
             </div>
-            <div class="filtre-grup">
-                <label>Başlangıç</label>
-                <input type="datetime-local" id="baslangicTarih" onchange="logTabloDoldur()">
-            </div>
-            <div class="filtre-grup">
-                <label>Bitiş</label>
-                <input type="datetime-local" id="bitisTarih" onchange="logTabloDoldur()">
-            </div>
-            <button class="filtre-temizle" onclick="filtreTemizle()">Temizle</button>
-        </div>
-        <div class="log-alan">
             <table>
-                <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
-                <tbody id="logTablo"></tbody>
+                <thead><tr><th>Plaka</th><th>Sahip</th><th></th></tr></thead>
+                <tbody id="kayitliTablo"></tbody>
             </table>
+        </div>
+
+        <div class="kart">
+            <h2>Giriş Kayıtları</h2>
+            <div class="filtre-alan">
+                <div class="filtre-grup">
+                    <label>Plaka ara</label>
+                    <input type="text" id="aramaKutu" class="arama-kutu" placeholder="Plakaya göre ara..." oninput="logTabloDoldur()">
+                </div>
+                <div class="filtre-grup">
+                    <label>Başlangıç</label>
+                    <input type="datetime-local" id="baslangicTarih" onchange="logTabloDoldur()">
+                </div>
+                <div class="filtre-grup">
+                    <label>Bitiş</label>
+                    <input type="datetime-local" id="bitisTarih" onchange="logTabloDoldur()">
+                </div>
+                <button class="filtre-temizle" onclick="filtreTemizle()">Temizle</button>
+                <button class="csv-btn" onclick="csvIndir()">⬇ CSV İndir</button>
+            </div>
+            <div class="log-alan">
+                <table>
+                    <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
+                    <tbody id="logTablo"></tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
+        // ===================== OTURUM / TOKEN =====================
+        let token = null;
+        let aktifRol = null;
+
+        function yetkiliBaslik() {
+            return token ? { 'Authorization': 'Bearer ' + token } : {};
+        }
+
+        async function girisYapKullanici() {
+            const kullanici_adi = document.getElementById('girisKullanici').value.trim();
+            const sifre = document.getElementById('girisSifre').value;
+            if (!kullanici_adi || !sifre) { toastGoster('Kullanıcı adı ve şifre gerekli.', 'hata'); return; }
+
+            const form = new FormData();
+            form.append('kullanici_adi', kullanici_adi);
+            form.append('sifre', sifre);
+
+            const yanit = await fetch('/login', { method: 'POST', body: form });
+            if (!yanit.ok) {
+                const hata = await yanit.json();
+                toastGoster(hata.detail, 'hata');
+                return;
+            }
+
+            const veri = await yanit.json();
+            token = veri.token;
+            aktifRol = veri.rol;
+
+            document.getElementById('girisEkrani').style.display = 'none';
+            document.getElementById('anaIcerik').style.display = 'block';
+
+            document.getElementById('aktifKullaniciAdi').textContent = veri.kullanici_adi;
+            const rozet = document.getElementById('aktifRolRozet');
+            if (aktifRol === 'admin') {
+                rozet.textContent = 'Yönetici';
+                rozet.className = 'rol-rozet rol-admin';
+            } else {
+                rozet.textContent = 'Görevli';
+                rozet.className = 'rol-rozet rol-gorevli';
+            }
+
+            if (aktifRol === 'admin') {
+                document.querySelectorAll('.sadece-admin').forEach(e => e.style.display = '');
+            }
+
+            listeleriYenile();
+            toastGoster('Hoş geldiniz, ' + veri.kullanici_adi);
+        }
+
+        function cikisYap() {
+            token = null;
+            aktifRol = null;
+            document.getElementById('anaIcerik').style.display = 'none';
+            document.getElementById('girisEkrani').style.display = 'flex';
+            document.getElementById('girisKullanici').value = '';
+            document.getElementById('girisSifre').value = '';
+        }
+
+        // ===================== BİLDİRİM / ONAY =====================
         function toastGoster(mesaj, tip = 'basari') {
             const t = document.getElementById('toast');
             t.textContent = mesaj;
@@ -243,6 +384,7 @@
             onayKapat();
         };
 
+        // ===================== KAMERA =====================
         let kameraAkisi = null;
 
         async function kamerayiBaslat() {
@@ -257,7 +399,6 @@
             }
         }
 
-        // ---- Otomatik mod ----
         let otomatikModAktif = false;
         let otomatikInterval = null;
         let islemDevamEdiyor = false;
@@ -292,7 +433,7 @@
                 const form = new FormData();
                 form.append('dosya', blob, 'kamera.jpg');
 
-                const yanit = await fetch('/giris', { method: 'POST', body: form });
+                const yanit = await fetch('/giris', { method: 'POST', body: form, headers: yetkiliBaslik() });
                 const veri = await yanit.json();
 
                 if (veri.bulundu && veri.yeni_kayit) {
@@ -304,7 +445,7 @@
             }, 'image/jpeg');
         }
 
-        // ---- Dosyadan yükleme ----
+        // ===================== DOSYADAN YÜKLEME =====================
         async function girisYap() {
             const dosya = document.getElementById('foto').files[0];
             if (!dosya) { toastGoster('Önce bir fotoğraf seçin.', 'hata'); return; }
@@ -314,7 +455,7 @@
         }
 
         async function gonderVeGoster(form) {
-            const yanit = await fetch('/giris', { method: 'POST', body: form });
+            const yanit = await fetch('/giris', { method: 'POST', body: form, headers: yetkiliBaslik() });
             const veri = await yanit.json();
             if (!veri.bulundu) {
                 const sonuc = document.getElementById('sonuc');
@@ -355,37 +496,40 @@
             sonuc.innerHTML = metin + gorseller;
         }
 
-        // ---- Listeler ----
+        // ===================== LİSTELER =====================
         let tumLoglar = [];
 
         async function listeleriYenile() {
-            const kp = await (await fetch('/kayitli-plakalar')).json();
-            document.getElementById('kayitliTablo').innerHTML = kp.map(p =>
-                `<tr>
+            const kp = await (await fetch('/kayitli-plakalar', { headers: yetkiliBaslik() })).json();
+            document.getElementById('kayitliTablo').innerHTML = kp.map(p => {
+                // İşlem butonları sadece admin'e görünür
+                const islemler = aktifRol === 'admin'
+                    ? `<button class="islem-btn duzenle-btn" onclick="duzenleAc(${p.id}, '${p.plaka}', '${(p.sahip || '').replace(/'/g, "")}')">Düzenle</button>
+                       <button class="islem-btn sil-btn" onclick="plakaSil(${p.id})">Sil</button>`
+                    : '';
+                return `<tr>
                     <td>${p.plaka}</td>
                     <td>${p.sahip || '-'}</td>
-                    <td><button class="sil-btn" onclick="plakaSil(${p.id})">Sil</button></td>
-                </tr>`
-            ).join('');
+                    <td>${islemler}</td>
+                </tr>`;
+            }).join('');
 
-            tumLoglar = await (await fetch('/loglar')).json();
+            tumLoglar = await (await fetch('/loglar', { headers: yetkiliBaslik() })).json();
             logTabloDoldur();
 
-            const ist = await (await fetch('/istatistik')).json();
+            const ist = await (await fetch('/istatistik', { headers: yetkiliBaslik() })).json();
             document.getElementById('istKayitli').textContent = ist.toplam_kayitli;
             document.getElementById('istToplam').textContent = ist.bugun_toplam;
             document.getElementById('istIzinli').textContent = ist.bugun_izinli;
             document.getElementById('istYetkisiz').textContent = ist.bugun_yetkisiz;
         }
 
-        // "dd.mm.yyyy HH:MM:SS" metnini Date nesnesine çevir (filtre karşılaştırması için)
         function logZamaniParse(zamanStr) {
             const [tarih, saat] = zamanStr.split(' ');
             const [gun, ay, yil] = tarih.split('.');
             return new Date(`${yil}-${ay}-${gun}T${saat}`);
         }
 
-        // Log tablosunu plaka + tarih filtresine göre doldur
         function logTabloDoldur() {
             const arama = document.getElementById('aramaKutu').value.trim().toUpperCase();
             const baslangicStr = document.getElementById('baslangicTarih').value;
@@ -394,9 +538,7 @@
             const bitis = bitisStr ? new Date(bitisStr) : null;
 
             const filtreli = tumLoglar.filter(l => {
-                // Plaka filtresi
                 if (arama && !l.plaka.includes(arama)) return false;
-                // Tarih filtresi
                 if (baslangic || bitis) {
                     const logZaman = logZamaniParse(l.zaman);
                     if (baslangic && logZaman < baslangic) return false;
@@ -424,9 +566,22 @@
             logTabloDoldur();
         }
 
-        // Plaka geçmişi modal
+        // CSV indir (token ile çek, dosya olarak kaydet)
+        async function csvIndir() {
+            const yanit = await fetch('/loglar-excel', { headers: yetkiliBaslik() });
+            if (!yanit.ok) { toastGoster('İndirme başarısız.', 'hata'); return; }
+            const blob = await yanit.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'giris_kayitlari.xlsx';
+            a.click();
+            URL.revokeObjectURL(url);
+            toastGoster('CSV indirildi.');
+        }
+
         async function plakaGecmisGoster(plaka) {
-            const gecmis = await (await fetch('/plaka-gecmis/' + plaka)).json();
+            const gecmis = await (await fetch('/plaka-gecmis/' + plaka, { headers: yetkiliBaslik() })).json();
             document.getElementById('gecmisBaslik').textContent =
                 plaka + ' — Giriş Geçmişi (' + gecmis.length + ' kayıt)';
             document.getElementById('gecmisTablo').innerHTML = gecmis.map(g => {
@@ -442,6 +597,7 @@
             document.getElementById('gecmisArka').style.display = 'none';
         }
 
+        // ===================== PLAKA YÖNETİMİ (admin) =====================
         async function plakaEkle() {
             const plaka = document.getElementById('yeniPlaka').value.trim();
             const sahip = document.getElementById('yeniSahip').value.trim();
@@ -451,7 +607,7 @@
             form.append('plaka', plaka);
             form.append('sahip', sahip);
 
-            const yanit = await fetch('/plaka-ekle', { method: 'POST', body: form });
+            const yanit = await fetch('/plaka-ekle', { method: 'POST', body: form, headers: yetkiliBaslik() });
             if (yanit.ok) {
                 document.getElementById('yeniPlaka').value = '';
                 document.getElementById('yeniSahip').value = '';
@@ -465,17 +621,48 @@
 
         function plakaSil(id) {
             onayAc('Bu plakayı silmek istediğinize emin misiniz?', async () => {
-                const yanit = await fetch('/plaka-sil/' + id, { method: 'DELETE' });
+                const yanit = await fetch('/plaka-sil/' + id, { method: 'DELETE', headers: yetkiliBaslik() });
                 if (yanit.ok) {
                     listeleriYenile();
                     toastGoster('Plaka silindi.');
                 } else {
-                    toastGoster('Silme başarısız.', 'hata');
+                    const hata = await yanit.json();
+                    toastGoster(hata.detail || 'Silme başarısız.', 'hata');
                 }
             });
         }
 
-        listeleriYenile();
+        // Düzenleme
+        let duzenlenecekId = null;
+        function duzenleAc(id, plaka, sahip) {
+            duzenlenecekId = id;
+            document.getElementById('duzenlePlaka').value = plaka;
+            document.getElementById('duzenleSahip').value = sahip;
+            document.getElementById('duzenleArka').style.display = 'flex';
+        }
+        function duzenleKapat() {
+            document.getElementById('duzenleArka').style.display = 'none';
+            duzenlenecekId = null;
+        }
+        async function duzenleKaydet() {
+            const plaka = document.getElementById('duzenlePlaka').value.trim();
+            const sahip = document.getElementById('duzenleSahip').value.trim();
+            if (!plaka || !sahip) { toastGoster('Plaka ve sahip adı zorunlu.', 'hata'); return; }
+
+            const form = new FormData();
+            form.append('plaka', plaka);
+            form.append('sahip', sahip);
+
+            const yanit = await fetch('/plaka-guncelle/' + duzenlenecekId, { method: 'PUT', body: form, headers: yetkiliBaslik() });
+            if (yanit.ok) {
+                duzenleKapat();
+                listeleriYenile();
+                toastGoster('Plaka güncellendi.');
+            } else {
+                const hata = await yanit.json();
+                toastGoster(hata.detail || 'Güncelleme başarısız.', 'hata');
+            }
+        }
     </script>
 </body>
 </html>

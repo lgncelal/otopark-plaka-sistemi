@@ -18,3 +18,12 @@ class GirisLog(Base):
     plaka = Column(String, index=True, nullable=False)
     zaman = Column(DateTime, default=datetime.now)
     izinli = Column(Boolean, default=False)
+
+
+class Kullanici(Base):
+    __tablename__ = "kullanicilar"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kullanici_adi = Column(String, unique=True, index=True, nullable=False)
+    sifre_hash = Column(String, nullable=False)
+    rol = Column(String, default="gorevli")  # "admin" veya "gorevli"p
