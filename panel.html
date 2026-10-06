@@ -54,11 +54,16 @@
         .sil-btn { background: #c0392b; padding: 5px 12px; font-size: 12px; }
         .sil-btn:hover { background: #a93226; }
 
-        .arama-kutu {
-            padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px;
-            font-size: 14px; margin-bottom: 16px; width: 100%; max-width: 300px;
+        .filtre-alan { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; align-items: flex-end; }
+        .filtre-grup { display: flex; flex-direction: column; gap: 4px; }
+        .filtre-grup label { font-size: 12px; color: #666; }
+        .filtre-alan input {
+            padding: 8px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px;
         }
-        .log-alan { height: 400px; overflow-y: auto; }        
+        .arama-kutu { min-width: 200px; }
+        .filtre-temizle { background: #999; padding: 8px 14px; font-size: 13px; }
+        .filtre-temizle:hover { background: #777; }
+        .log-alan { height: 400px; overflow-y: auto; }
         .plaka-link { color: #0f3460; font-weight: 600; text-decoration: none; cursor: pointer; }
         .plaka-link:hover { text-decoration: underline; }
 
@@ -192,7 +197,21 @@
 
     <div class="kart">
         <h2>Giriş Kayıtları</h2>
-        <input type="text" id="aramaKutu" class="arama-kutu" placeholder="Plakaya göre ara..." oninput="logTabloDoldur()">
+        <div class="filtre-alan">
+            <div class="filtre-grup">
+                <label>Plaka ara</label>
+                <input type="text" id="aramaKutu" class="arama-kutu" placeholder="Plakaya göre ara..." oninput="logTabloDoldur()">
+            </div>
+            <div class="filtre-grup">
+                <label>Başlangıç</label>
+                <input type="datetime-local" id="baslangicTarih" onchange="logTabloDoldur()">
+            </div>
+            <div class="filtre-grup">
+                <label>Bitiş</label>
+                <input type="datetime-local" id="bitisTarih" onchange="logTabloDoldur()">
+            </div>
+            <button class="filtre-temizle" onclick="filtreTemizle()">Temizle</button>
+        </div>
         <div class="log-alan">
             <table>
                 <thead><tr><th>Plaka</th><th>Zaman</th><th>Durum</th></tr></thead>
@@ -238,7 +257,7 @@
             }
         }
 
-        // ---- Otomatik mod: her 2 sn kare gönder, tekrar kontrolünü backend yapar ----
+        // ---- Otomatik mod ----
         let otomatikModAktif = false;
         let otomatikInterval = null;
         let islemDevamEdiyor = false;
@@ -337,7 +356,7 @@
         }
 
         // ---- Listeler ----
-        let tumLoglar = [];  // arama için loglar burada tutulur
+        let tumLoglar = [];
 
         async function listeleriYenile() {
             const kp = await (await fetch('/kayitli-plakalar')).json();
@@ -359,12 +378,32 @@
             document.getElementById('istYetkisiz').textContent = ist.bugun_yetkisiz;
         }
 
-        // Log tablosunu arama filtresine göre doldur
+        // "dd.mm.yyyy HH:MM:SS" metnini Date nesnesine çevir (filtre karşılaştırması için)
+        function logZamaniParse(zamanStr) {
+            const [tarih, saat] = zamanStr.split(' ');
+            const [gun, ay, yil] = tarih.split('.');
+            return new Date(`${yil}-${ay}-${gun}T${saat}`);
+        }
+
+        // Log tablosunu plaka + tarih filtresine göre doldur
         function logTabloDoldur() {
             const arama = document.getElementById('aramaKutu').value.trim().toUpperCase();
-            const filtreli = arama
-                ? tumLoglar.filter(l => l.plaka.includes(arama))
-                : tumLoglar;
+            const baslangicStr = document.getElementById('baslangicTarih').value;
+            const bitisStr = document.getElementById('bitisTarih').value;
+            const baslangic = baslangicStr ? new Date(baslangicStr) : null;
+            const bitis = bitisStr ? new Date(bitisStr) : null;
+
+            const filtreli = tumLoglar.filter(l => {
+                // Plaka filtresi
+                if (arama && !l.plaka.includes(arama)) return false;
+                // Tarih filtresi
+                if (baslangic || bitis) {
+                    const logZaman = logZamaniParse(l.zaman);
+                    if (baslangic && logZaman < baslangic) return false;
+                    if (bitis && logZaman > bitis) return false;
+                }
+                return true;
+            });
 
             document.getElementById('logTablo').innerHTML = filtreli.map(l => {
                 const durumRozet = l.izinli
@@ -378,7 +417,14 @@
             }).join('');
         }
 
-        // Bir plakanın tüm geçmişini modal'da göster
+        function filtreTemizle() {
+            document.getElementById('aramaKutu').value = '';
+            document.getElementById('baslangicTarih').value = '';
+            document.getElementById('bitisTarih').value = '';
+            logTabloDoldur();
+        }
+
+        // Plaka geçmişi modal
         async function plakaGecmisGoster(plaka) {
             const gecmis = await (await fetch('/plaka-gecmis/' + plaka)).json();
             document.getElementById('gecmisBaslik').textContent =
